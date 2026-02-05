@@ -191,8 +191,7 @@ const AuditoriaXML = ({ rfcCliente, onBack }) => {
         let currentY = 50;
         currentY = buildTable(" INGRESOS", ingresos, currentY);
         currentY = buildTable(" GASTOS", gastos, currentY);
-        currentY = buildTable(" RETENCIONES", retenciones, currentY);
-
+        
         doc.save(`Auditoria_${rfcCliente}_${fecha}.pdf`);
     };
     const cambiarClasificacion = (tipo, id, nueva) => {
