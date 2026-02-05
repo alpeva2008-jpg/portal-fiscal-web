@@ -188,9 +188,7 @@ const AuditoriaXML = ({ rfcCliente, onBack }) => {
             return doc.lastAutoTable.finalY + 15;
         };
 
-        let currentY = 50;
-        currentY = buildTable(" INGRESOS", ingresos, currentY);
-        currentY = buildTable(" GASTOS", gastos, currentY);
+        
         
         doc.save(`Auditoria_${rfcCliente}_${fecha}.pdf`);
     };
