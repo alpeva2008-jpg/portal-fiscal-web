@@ -90,11 +90,11 @@ const AuditoriaXML = ({ rfcCliente, onBack }) => {
                                     sub = parseFloat(getVal(comp, "SubTotal") || 0);
                                     const imp = comp.Impuestos || {};
                                     const tras = imp.Traslados?.Traslado;
-                                    if (tras) (Array.isArray(tras) ? tras : [tras]).forEach(t => { if (getVal(t, "Impuesto") == "002") ivaT += parseFloat(getVal(t, "Importe") || 0); });
+                                    if (tras) (Array.isArray(tras) ? tras : [tras]).forEach(t => { if (getVal(t, "Impuesto") === "002") ivaT += parseFloat(getVal(t, "Importe") || 0); });
                                     const rets = imp.Retenciones?.Retencion;
                                     if (rets) (Array.isArray(rets) ? rets : [rets]).forEach(r => {
-                                        if (getVal(r, "Impuesto") == "002") ivaR += parseFloat(getVal(r, "Importe") || 0);
-                                        if (getVal(r, "Impuesto") == "001") isrR += parseFloat(getVal(r, "Importe") || 0);
+                                        if (getVal(r, "Impuesto") === "002") ivaR += parseFloat(getVal(r, "Importe") || 0);
+                                        if (getVal(r, "Impuesto") === "001") isrR += parseFloat(getVal(r, "Importe") || 0);
                                     });
                                 }
                                 const datos = {
