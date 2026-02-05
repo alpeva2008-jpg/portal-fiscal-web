@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { XMLParser } from 'fast-xml-parser';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable'; // Cambiamos la forma de importar
+
 
 const CATALOGO_PAGO = {
     "01": "Efectivo", "02": "Cheque", "03": "Transferencia", "04": "T. Crédito",
