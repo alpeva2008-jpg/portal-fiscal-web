@@ -136,58 +136,7 @@ const AuditoriaXML = ({ rfcCliente, onBack }) => {
         doc.setTextColor(100);
         doc.text("*Totales calculados únicamente sobre conceptos AUTORIZADOS", 14, 40);
 
-        const buildTable = (titulo, data, yStart) => {
-            if (data.length === 0) return yStart;
-
-            // FILTRO: Solo sumar si están autorizados
-            const autorizados = data.filter(i => i.clasificacion === 'autorizado');
-            
-            const totalSub = autorizados.reduce((acc, i) => acc + i.subtotal, 0);
-            const totalIvaT = autorizados.reduce((acc, i) => acc + (i.ivaT || 0), 0);
-            const totalIvaR = autorizados.reduce((acc, i) => acc + (i.ivaR || 0), 0);
-            const totalIsrR = autorizados.reduce((acc, i) => acc + (i.isrR || 0), 0);
-
-            doc.setFontSize(14);
-            doc.setTextColor(40);
-            doc.text(titulo, 14, yStart);
-            
-            const rows = data.map(i => [
-                i.emisorNombre.substring(0, 20),
-                i.receptorNombre.substring(0, 20),
-                `$${i.subtotal.toFixed(2)}`,
-                `$${(i.ivaT || 0).toFixed(2)}`,
-                `$${(i.ivaR || 0).toFixed(2)}`,
-                `$${(i.isrR || 0).toFixed(2)}`,
-                i.clasificacion.toUpperCase()
-            ]);
-
-            // Agregar fila de totales filtrados
-            rows.push([
-                { content: 'TOTAL AUTORIZADOS', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', fillColor: [230, 245, 230] } },
-                { content: `$${totalSub.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [230, 245, 230] } },
-                { content: `$${totalIvaT.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [230, 245, 230] } },
-                { content: `$${totalIvaR.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [230, 245, 230] } },
-                { content: `$${totalIsrR.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [230, 245, 230] } },
-                { content: '', styles: { fillColor: [230, 245, 230] } }
-            ]);
-
-            autoTable(doc, {
-                startY: yStart + 5,
-                head: [['Emisor', 'Receptor', 'Subtotal', 'IVA Tras', 'IVA Ret', 'ISR Ret', 'Status']],
-                body: rows,
-                theme: 'striped',
-                headStyles: { fillColor: [69, 90, 100] },
-                styles: { fontSize: 8 },
-                didParseCell: (data) => {
-                    // Pintar de rojo si el status es NO_AUTORIZADO para que resalte
-                    if (data.section === 'body' && data.column.index === 6 && data.cell.raw === 'NO_AUTORIZADO') {
-                        data.cell.styles.textColor = [200, 0, 0];
-                    }
-                }
-            });
-            return doc.lastAutoTable.finalY + 15;
-        };
-
+        
         
         
         doc.save(`Auditoria_${rfcCliente}_${fecha}.pdf`);
