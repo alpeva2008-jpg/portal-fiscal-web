@@ -18,7 +18,7 @@ function App() {
   const [userData, setUserData] = useState(null); 
 
   // --- CONFIGURACIÓN DE MANTENIMIENTO ---
-  const MODO_MANTENIMIENTO = true; // Cambia a false para abrir el portal a todos
+  const MODO_MANTENIMIENTO = true; 
   const ADMIN_EMAIL = "alpeva2008@gmail.com"; 
   // --------------------------------------
 
@@ -57,6 +57,7 @@ function App() {
     };
   }, []);
 
+  // 1. Pantalla de carga
   if (screen === 'loading') {
     return (
       <div style={styles.center}>
@@ -65,34 +66,36 @@ function App() {
     );
   }
 
-  // --- LÓGICA DE BLOQUEO POR MANTENIMIENTO ---
-  // Si el mantenimiento está activo y NO eres el admin, mostramos la pantalla de aviso.
-  if (MODO_MANTENIMIENTO && !isAdmin && screen !== 'login') {
+  // 2. Si no hay usuario, forzar Login (no importa si hay mantenimiento o no)
+  if (screen === 'login') {
+    return <LoginScreen 
+             onLoginSuccess={() => setScreen('menu')} 
+             onGoToRegister={() => setScreen('register')} 
+           />;
+  }
+
+  if (screen === 'register') {
+    return <RegisterScreen onBack={() => setScreen('login')} />;
+  }
+
+  // 3. BLOQUEO CRÍTICO: Si el mantenimiento está activo y NO es el admin.
+  // Se ejecuta después del login para saber quién es el usuario.
+  if (MODO_MANTENIMIENTO && !isAdmin) {
     return (
       <div style={styles.mantenimientoContainer}>
         <h1 style={styles.titulo}>Portal Fiscal Autónomo</h1>
         <div style={styles.icono}>⚙️</div>
-        <h2>Actualización en curso</h2>
+        <h2 style={{color: '#d32f2f'}}>Actualización en curso</h2>
         <p>Estamos instalando el nuevo Módulo de Facturación para mejorar tu experiencia.</p>
-        <p style={styles.subtexto}>Volveremos en breve. Gracias por tu paciencia.</p>
-        <button onClick={() => auth.signOut()} style={styles.btnSalir}>Cerrar Sesión</button>
+        <p style={styles.subtexto}>El acceso para clientes estará disponible en breve.</p>
+        <button onClick={() => auth.signOut()} style={styles.btnSalir}>Cerrar Sesión para reintentar</button>
       </div>
     );
   }
 
+  // 4. Si pasó todos los filtros, mostramos la App normal
   return (
     <div className="App">
-      {screen === 'login' && (
-        <LoginScreen 
-          onLoginSuccess={() => setScreen('menu')} 
-          onGoToRegister={() => setScreen('register')} 
-        />
-      )}
-      
-      {screen === 'register' && (
-        <RegisterScreen onBack={() => setScreen('login')} />
-      )}
-      
       {screen === 'menu' && (
         <MenuScreen 
           onLogout={() => auth.signOut()} 
@@ -113,14 +116,13 @@ function App() {
   );
 }
 
-// Estilos rápidos para el aviso
 const styles = {
   center: { display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', fontFamily: 'sans-serif' },
-  mantenimientoContainer: { height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', fontFamily: 'sans-serif', backgroundColor: '#fff', padding: '20px' },
-  titulo: { fontSize: '22px', fontWeight: 'bold', color: '#000' },
-  icono: { fontSize: '50px', margin: '20px 0' },
-  subtexto: { color: '#666', marginTop: '10px' },
-  btnSalir: { marginTop: '30px', padding: '10px 20px', backgroundColor: '#eee', border: 'none', borderRadius: '5px', cursor: 'pointer' }
+  mantenimientoContainer: { height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', fontFamily: 'sans-serif', backgroundColor: '#f4f4f4', padding: '20px' },
+  titulo: { fontSize: '26px', fontWeight: 'bold', color: '#333', marginBottom: '10px' },
+  icono: { fontSize: '60px', margin: '20px 0' },
+  subtexto: { color: '#888', marginTop: '10px', fontStyle: 'italic' },
+  btnSalir: { marginTop: '30px', padding: '12px 25px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }
 };
 
 export default App;
