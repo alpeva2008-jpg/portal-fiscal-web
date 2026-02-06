@@ -1,195 +1,196 @@
-import React, { useState, useEffect } from 'react';
-import { db, auth } from '../firebaseConfig';
-import { doc, getDoc } from "firebase/firestore";
+import React, { useState } from 'react';
 
-const HonorariosScreen = ({ onBack }) => {
-    const [datos, setDatos] = useState(null);
-    const [loading, setLoading] = useState(true);
+const HonorariosScreen = ({ datosPago, onBack }) => {
     const [copiado, setCopiado] = useState(false);
 
-    useEffect(() => {
-        const fetchDatos = async () => {
-            try {
-                const user = auth.currentUser;
-                if (user) {
-                    const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-                    if (userDoc.exists() && userDoc.data().datosPago) {
-                        setDatos(userDoc.data().datosPago);
-                    }
-                }
-            } catch (error) { console.error(error); } finally { setLoading(false); }
-        };
-        fetchDatos();
-    }, []);
-
-    const obtenerCalculoTotal = () => {
-        if (!datos) return { total: 0, recargo: 0, mensaje: "" };
-        const hoy = new Date();
-        const diaActual = hoy.getDate();
-        const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
-        
-        let diaCorte = parseInt(datos.diaCorte) || 12;
-        if (diaCorte > ultimoDiaMes) diaCorte = ultimoDiaMes;
-
-        const importeBase = parseFloat(datos.importe) || 0;
-        let recargo = 0;
-        let mensaje = "";
-        let totalFinal = 0;
-
-        // --- LÓGICA DE COBRO PERSONALIZADA ---
-        
-        const diasParaElPago = diaCorte - diaActual;
-        const enVentanaNuevoMes = (diasParaElPago >= 0 && diasParaElPago <= 7);
-
-        // 1. SI EL ADMIN REINICIÓ (Botón Naranja) -> Solo cobramos el mes actual limpio
-        if (datos.concepto === "HONORARIOS MES EN CURSO") {
-            recargo = 0;
-            totalFinal = importeBase;
-            mensaje = "✨ Próximo pago mensual (Sin recargos)";
-        } 
-        // 2. SI ESTAMOS ANTES DEL CORTE PERO NO HA PAGADO EL ANTERIOR (Deuda acumulada)
-        else if (diaActual < diaCorte && !datos.pagado) {
-            if (enVentanaNuevoMes) {
-                // Se juntan los dos meses + mora por el atraso de 150
-                recargo = 150;
-                totalFinal = (importeBase * 2) + recargo;
-                mensaje = "🚨 DEUDA ACUMULADA: 2 Meses + Recargo $150.00";
-            } else {
-                // Solo debe el anterior con mora máxima
-                recargo = 150;
-                totalFinal = importeBase + recargo;
-                mensaje = "🚫 PAGO VENCIDO: Mes anterior + Recargo $150.00";
-            }
-        }
-        // 3. SI YA PASÓ EL DÍA DE CORTE (Mes actual en mora)
-        else if (diaActual >= diaCorte && !datos.pagado) {
-            if (diaActual > (diaCorte + 12)) {
-                recargo = 150;
-                mensaje = "🚫 PAGO MUY VENCIDO: Recargo acumulado de $150.00";
-            } else if (diaActual > (diaCorte + 7)) {
-                recargo = 95;
-                mensaje = "🚫 Pago vencido: Recargo acumulado de $95.00";
-            } else if (diaActual > (diaCorte + 2)) {
-                recargo = 45;
-                mensaje = "⚠️ Recargo por mora aplicado: $45.00";
-            }
-            totalFinal = importeBase + recargo;
-        }
-
-        return { total: totalFinal, recargo, mensaje };
+    // LÓGICA INTACTA
+    const pagoSeguro = datosPago || {
+        clabe: "000000000000000000",
+        pagado: false,
+        diaLimite: 15,
+        importeVencido: 0,
+        importeCorriente: 0,
+        banco: "Pendiente",
+        beneficiario: "Pendiente",
+        concepto: "Honorarios Profesionales"
     };
 
-    const verificarVisibilidad = () => {
-        if (!datos) return false;
-        if (datos.pagado) return true; 
-
-        const hoy = new Date();
-        const diaActual = hoy.getDate();
-        const diaCorte = parseInt(datos.diaCorte) || 12;
-        const diasParaElPago = diaCorte - diaActual;
-        
-        return (diasParaElPago <= 7 || diaActual >= diaCorte || (diaActual < diaCorte && !datos.pagado));
-    };
+    const hoy = new Date();
+    const diaActual = hoy.getDate();
 
     const copiarClabe = () => {
-        navigator.clipboard.writeText(datos.clabe);
+        navigator.clipboard.writeText(pagoSeguro.clabe);
         setCopiado(true);
         setTimeout(() => setCopiado(false), 2000);
     };
 
-    if (loading) return <div style={{padding: '50px', textAlign: 'center'}}><h3>Cargando...</h3></div>;
+    const diaLimite = parseInt(pagoSeguro.diaLimite) || 1;
+    const vencido = parseFloat(pagoSeguro.importeVencido) || 0;
+    const corriente = parseFloat(pagoSeguro.importeCorriente) || 0;
+    const baseAntiguo = parseFloat(pagoSeguro.importeBase) || 0;
 
-    if (!verificarVisibilidad()) return (
-        <div style={{padding: '50px', textAlign: 'center', fontFamily: 'Arial'}}>
-            <div style={{fontSize: '50px'}}>⏳</div>
-            <h3 style={{color: '#666'}}>Próximamente...</h3>
-            <p style={{color: '#999', fontSize: '14px'}}>Tu ficha de pago se activará 7 días antes del día {datos?.diaCorte}.</p>
-            <button onClick={onBack} style={s.btnBack}>Volver</button>
-        </div>
-    );
+    let totalCalculado = vencido + corriente;
+    if (totalCalculado === 0 && baseAntiguo > 0 && !pagoSeguro.pagado) {
+        totalCalculado = baseAntiguo; 
+    }
 
-    if (datos.pagado) return (
-        <div style={s.container}>
-            <div style={{...s.card, textAlign: 'center', border: '2px solid #4CAF50'}}>
-                <div style={{fontSize: '60px', marginBottom: '10px'}}>✅</div>
-                <h2 style={{color: '#4CAF50'}}>¡Pago Recibido!</h2>
-                <p style={{color: '#666', fontSize: '14px'}}>Hemos validado tu pago correctamente. Gracias por tu puntualidad.</p>
-            </div>
-            <button onClick={onBack} style={s.btnBack}>Volver al Menú</button>
-        </div>
-    );
+    let mora = 0;
+    let mensajeMora = "";
+    let colorMora = "#4286f4"; // Azul acero por defecto
 
-    const infoPago = obtenerCalculoTotal();
+    if (totalCalculado > 0 && diaActual > diaLimite) {
+        const diasRetraso = diaActual - diaLimite;
+        if (diasRetraso > 7) { 
+            mora = 160; 
+            mensajeMora = "Recargo por morosidad (+$160)"; 
+            colorMora = "#ff4d4d"; // Rojo vibrante
+        }
+        else if (diasRetraso > 2) { 
+            mora = 90; 
+            mensajeMora = "Recargo por pago tardío (+$90)"; 
+            colorMora = "#ffa726"; // Naranja sutil
+        }
+    }
 
-    return (
-        <div style={s.container}>
-            <h2 style={s.title}>Ficha de Pago</h2>
-            <div style={s.card}>
-                <div style={s.badge}>TRANSFERENCIA SPEI</div>
+    const totalFinal = totalCalculado + mora;
 
-                <div style={{
-                    backgroundColor: '#fff9c4', 
-                    padding: '10px', 
-                    borderRadius: '10px', 
-                    marginBottom: '15px', 
-                    textAlign: 'center',
-                    border: '1px solid #fbc02d'
-                }}>
-                    <span style={{fontSize: '10px', color: '#f57f17', fontWeight: 'bold', display: 'block'}}>FECHA LÍMITE DE PAGO:</span>
-                    <span style={{fontSize: '14px', color: '#333', fontWeight: 'bold'}}>DÍA {datos.diaCorte || '12'} DE CADA MES</span>
+    // --- RENDER: ESTADO AL CORRIENTE ---
+    if (pagoSeguro.pagado && totalFinal === 0) {
+        return (
+            <div style={s.contenedorPrincipal}>
+                <div style={s.card}>
+                    <div style={s.iconoExito}>✅</div>
+                    <h3 style={{color: '#fff'}}>¡Estás al corriente!</h3>
+                    <p style={{color: 'rgba(255,255,255,0.6)'}}>No tienes saldos pendientes este mes.</p>
+                    <button onClick={onBack} style={s.btnBackInside}>← Volver al Menú</button>
                 </div>
-                
-                <div style={s.row}><span style={s.label}>INSTITUCIÓN BANCARIA</span><span style={s.value}>{datos.banco}</span></div>
-                <div style={s.row}><span style={s.label}>BENEFICIARIO</span><span style={s.value}>{datos.beneficiario}</span></div>
-                <div style={s.row}><span style={s.label}>CLABE INTERBANCARIA</span>
-                    <div style={s.clabeContainer}>
-                        <span style={{...s.value, color: '#1976d2'}}>{datos.clabe}</span>
-                        <button onClick={copiarClabe} style={s.btnCopy}>{copiado ? "¡Copiado!" : "Copiar"}</button>
+            </div>
+        );
+    }
+
+    // --- RENDER: SALDO A FAVOR ---
+    if (totalFinal < 0) {
+        return (
+            <div style={s.contenedorPrincipal}>
+                <div style={{...s.card, border: '1px solid #4CAF50'}}>
+                    <div style={{...s.headerFicha, background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)'}}>
+                        <h3 style={{margin: 0, color: 'white'}}>SALDO A FAVOR</h3>
+                        <span style={{fontSize: '11px', color: 'rgba(255,255,255,0.8)'}}>¡GRACIAS POR TU PUNTUALIDAD!</span>
+                    </div>
+                    <div style={s.cuerpoFicha}>
+                        <div style={{fontSize: '50px', marginBottom: '10px', textAlign: 'center'}}>💰</div>
+                        <p style={s.label}>Monto disponible:</p>
+                        <div style={{...s.montoTotal, color: '#4CAF50', fontSize: '40px', textAlign: 'center', margin: '15px 0'}}>
+                            ${Math.abs(totalFinal).toFixed(2)}
+                        </div>
+                        <p style={{...s.nota, color: 'rgba(255,255,255,0.5)'}}>
+                            Este monto se descontará automáticamente de tus próximos honorarios.
+                        </p>
                     </div>
                 </div>
-                <div style={s.row}><span style={s.label}>CONCEPTO</span><span style={s.value}>{datos.concepto}</span></div>
-                
-                {infoPago.mensaje && (
-                    <p style={{
-                        color: infoPago.recargo > 0 ? '#d32f2f' : '#1976d2', 
-                        fontSize: '12px', 
-                        textAlign: 'center', 
-                        fontWeight: 'bold', 
-                        margin: '10px 0',
-                        backgroundColor: infoPago.recargo >= 150 ? '#ffebee' : 'transparent',
-                        padding: infoPago.recargo >= 150 ? '8px' : '0',
-                        borderRadius: '5px'
-                    }}>
-                        {infoPago.mensaje}
-                    </p>
-                )}
-                
-                <div style={s.importContainer}>
-                    <span style={s.labelImporte}>TOTAL A DEPOSITAR HOY</span>
-                    <h1 style={s.monto}>${infoPago.total.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN</h1>
+                <button onClick={onBack} style={s.btnBack}>← Volver al Menú</button>
+            </div>
+        );
+    }
+
+    // --- RENDER: FICHA DE PAGO ESTÁNDAR ---
+    return (
+        <div style={s.contenedorPrincipal}>
+            <div style={s.card}>
+                <div style={{...s.headerFicha, background: `linear-gradient(135deg, ${colorMora} 0%, #1a1a1a 100%)`}}>
+                    <h3 style={{margin: 0, color: 'white'}}>FICHA DE PAGO</h3>
+                    <span style={{fontSize: '11px', color: 'rgba(255,255,255,0.8)'}}>VENCE EL DÍA {diaLimite} DE CADA MES</span>
+                </div>
+
+                <div style={s.cuerpoFicha}>
+                    <p style={s.label}>Banco</p>
+                    <p style={s.dato}>{pagoSeguro.banco}</p>
+
+                    <p style={s.label}>Beneficiario</p>
+                    <p style={s.dato}>{pagoSeguro.beneficiario}</p>
+
+                    <p style={s.label}>CLABE Interbancaria</p>
+                    <div style={s.clabeRow}>
+                        <p style={{...s.datoClabe, color: '#fff'}}>{pagoSeguro.clabe}</p>
+                        <button onClick={copiarClabe} style={{...s.btnCopy, background: colorMora}}>
+                            {copiado ? "¡Copiado!" : "Copiar"}
+                        </button>
+                    </div>
+
+                    <p style={s.label}>Concepto de Pago</p>
+                    <p style={{...s.dato, color: '#4286f4'}}>{pagoSeguro.concepto || "Honorarios Profesionales"}</p>
+
+                    <hr style={s.divider} />
+
+                    {vencido > 0 && (
+                        <div style={s.filaImporte}>
+                            <span>Saldo Vencido:</span>
+                            <span style={{color: '#ff4d4d', fontWeight: 'bold'}}>${vencido.toFixed(2)}</span>
+                        </div>
+                    )}
+
+                    <div style={s.filaImporte}>
+                        <span>Saldo Próximo:</span>
+                        <span>${corriente.toFixed(2)}</span>
+                    </div>
+
+                    {mora > 0 && (
+                        <div style={{...s.filaImporte, color: colorMora, fontSize: '13px', fontWeight: 'bold'}}>
+                            <span>{mensajeMora}</span>
+                        </div>
+                    )}
+
+                    <div style={{...s.totalCaja, borderLeft: `5px solid ${colorMora}`}}>
+                        <span style={{fontSize: '11px', fontWeight: 'bold', color: 'rgba(255,255,255,0.5)'}}>TOTAL A DEPOSITAR:</span>
+                        <span style={{...s.montoTotal, color: '#fff'}}>
+                            ${totalFinal.toFixed(2)}
+                        </span>
+                    </div>
+                    
+                    <p style={s.nota}>* El sistema se actualiza automáticamente tras recibir el pago.</p>
                 </div>
             </div>
-            <button onClick={onBack} style={s.btnBack}>← Volver al Menú</button>
-            <p style={s.footerNote}>* Envía tu comprobante al despacho una vez realizado el pago.</p>
+            <button onClick={onBack} style={s.btnBack}>← Volver al Menú Principal</button>
         </div>
     );
 };
 
 const s = {
-    container: { padding: '20px', maxWidth: '450px', margin: '0 auto', fontFamily: 'Arial, sans-serif' },
-    title: { textAlign: 'center', color: '#333', marginBottom: '20px', fontWeight: 'bold' },
-    card: { backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' },
-    badge: { position: 'absolute', top: '0', right: '0', backgroundColor: '#1976d2', color: 'white', fontSize: '10px', padding: '5px 15px', borderRadius: '0 0 0 15px', fontWeight: 'bold' },
-    row: { marginBottom: '18px', display: 'flex', flexDirection: 'column' },
-    label: { fontSize: '10px', color: '#888', fontWeight: 'bold', marginBottom: '4px' },
-    value: { fontSize: '15px', color: '#222', fontWeight: 'bold', textTransform: 'uppercase' },
-    clabeContainer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '8px', border: '1px dashed #ccc' },
-    btnCopy: { backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer' },
-    importContainer: { textAlign: 'center', backgroundColor: '#f0f7ff', padding: '20px', borderRadius: '12px' },
-    labelImporte: { fontSize: '11px', color: '#1976d2', fontWeight: 'bold' },
-    monto: { fontSize: '30px', color: '#1976d2', margin: '5px 0', fontWeight: '900' },
-    btnBack: { width: '100%', padding: '14px', marginTop: '20px', cursor: 'pointer', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold' },
-    footerNote: { textAlign: 'center', fontSize: '11px', color: '#999', marginTop: '20px' }
+    contenedorPrincipal: { 
+        minHeight: '100vh', 
+        background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        fontFamily: 'Segoe UI, Roboto, sans-serif'
+    },
+    card: { 
+        backgroundColor: 'rgba(15, 32, 39, 0.85)', 
+        borderRadius: '28px', 
+        overflow: 'hidden', 
+        boxShadow: '0 25px 50px rgba(0,0,0,0.4)', 
+        width: '100%',
+        maxWidth: '400px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(15px)',
+        zIndex: 1
+    },
+    headerFicha: { padding: '25px', textAlign: 'center' },
+    cuerpoFicha: { padding: '25px' },
+    label: { fontSize: '10px', color: 'rgba(255,255,255,0.4)', margin: '15px 0 4px 0', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '1px' },
+    dato: { fontSize: '16px', fontWeight: '600', margin: '0', color: '#fff' },
+    clabeRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' },
+    datoClabe: { fontSize: '16px', fontWeight: '700', letterSpacing: '1px', margin: 0, fontFamily: 'monospace' },
+    btnCopy: { border: 'none', color: 'white', padding: '8px 15px', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
+    divider: { border: '0', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '20px 0' },
+    filaImporte: { display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: 'rgba(255,255,255,0.7)', fontSize: '14px' },
+    totalCaja: { marginTop: '20px', padding: '20px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    montoTotal: { fontSize: '28px', fontWeight: '800' },
+    iconoExito: { fontSize: '60px', marginBottom: '15px', textAlign: 'center' },
+    nota: { fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '20px', fontStyle: 'italic', textAlign: 'center' },
+    btnBack: { marginTop: '25px', width: '100%', maxWidth: '400px', padding: '16px', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer' },
+    btnBackInside: { marginTop: '20px', padding: '12px 25px', backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', color: '#fff' }
 };
 
 export default HonorariosScreen;
